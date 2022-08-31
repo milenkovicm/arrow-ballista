@@ -95,3 +95,65 @@ pub async fn new_standalone_executor<
     tokio::spawn(execution_loop::poll_loop(scheduler, executor, codec));
     Ok(())
 }
+
+
+pub async fn _new_standalone_executor<
+    T: 'static + AsLogicalPlan,
+    U: 'static + AsExecutionPlan,
+>(
+    scheduler: SchedulerGrpcClient<Channel>,
+    concurrent_tasks: usize,
+    codec: BallistaCodec<T, U>,
+) -> Result<Arc<RuntimeEnv>> {
+    // Let the OS assign a random, free port
+    let listener = TcpListener::bind("localhost:0").await?;
+    let addr = listener.local_addr()?;
+    info!(
+        "Ballista v{} Rust Executor listening on {:?}",
+        BALLISTA_VERSION, addr
+    );
+
+    let executor_meta = ExecutorRegistration {
+        id: Uuid::new_v4().to_string(), // assign this executor a unique ID
+        optional_host: Some(OptionalHost::Host("localhost".to_string())),
+        port: addr.port() as u32,
+        // TODO Make it configurable
+        grpc_port: 50020,
+        specification: Some(
+            ExecutorSpecification {
+                task_slots: concurrent_tasks as u32,
+            }
+            .into(),
+        ),
+    };
+    let work_dir = TempDir::new()?
+        .into_path()
+        .into_os_string()
+        .into_string()
+        .unwrap();
+    info!("work_dir: {}", work_dir);
+
+    let config = RuntimeConfig::new().with_temp_file_path(work_dir.clone());
+    let runtime = Arc::new(RuntimeEnv::new(config).unwrap());
+    
+    let executor = Arc::new(Executor::new(
+        executor_meta,
+        &work_dir,
+        runtime.clone(),
+        Arc::new(LoggingMetricsCollector::default()),
+        concurrent_tasks,
+    ));
+
+    let service = BallistaFlightService::new();
+    let server = FlightServiceServer::new(service);
+    tokio::spawn(
+        create_grpc_server()
+            .add_service(server)
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
+                listener,
+            )),
+    );
+
+    tokio::spawn(execution_loop::poll_loop(scheduler, executor, codec));
+    Ok(runtime)
+}

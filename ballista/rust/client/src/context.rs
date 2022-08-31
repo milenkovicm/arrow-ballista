@@ -17,6 +17,7 @@
 
 //! Distributed execution context.
 
+use datafusion::execution::runtime_env::RuntimeEnv;
 use log::info;
 use parking_lot::Mutex;
 use sqlparser::ast::Statement;
@@ -207,6 +208,78 @@ impl BallistaContext {
             state: Arc::new(Mutex::new(state)),
             context: Arc::new(ctx),
         })
+    }
+
+    #[cfg(feature = "standalone")]
+    pub async fn _standalone(
+        config: &BallistaConfig,
+        concurrent_tasks: usize,
+    ) -> ballista_core::error::Result<(Self, Arc<RuntimeEnv>)> {
+        use ballista_core::serde::protobuf::PhysicalPlanNode;
+        use ballista_core::serde::BallistaCodec;
+
+        log::info!("Running in local mode. Scheduler will be run in-proc");
+
+        let addr = ballista_scheduler::standalone::new_standalone_scheduler().await?;
+        let scheduler_url = format!("http://localhost:{}", addr.port());
+        let mut scheduler = loop {
+            match SchedulerGrpcClient::connect(scheduler_url.clone()).await {
+                Err(_) => {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    log::info!("Attempting to connect to in-proc scheduler...");
+                }
+                Ok(scheduler) => break scheduler,
+            }
+        };
+
+        let remote_session_id = scheduler
+            .execute_query(ExecuteQueryParams {
+                query: None,
+                settings: config
+                    .settings()
+                    .iter()
+                    .map(|(k, v)| KeyValuePair {
+                        key: k.to_owned(),
+                        value: v.to_owned(),
+                    })
+                    .collect::<Vec<_>>(),
+                optional_session_id: None,
+            })
+            .await
+            .map_err(|e| DataFusionError::Execution(format!("{:?}", e)))?
+            .into_inner()
+            .session_id;
+
+        info!(
+            "Server side SessionContext created with session id: {}",
+            remote_session_id
+        );
+
+        let ctx = {
+            create_df_ctx_with_ballista_query_planner::<LogicalPlanNode>(
+                scheduler_url,
+                remote_session_id,
+                config,
+            )
+        };
+
+        let default_codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> =
+            BallistaCodec::default();
+
+        let executor_runtime = ballista_executor::_new_standalone_executor(
+            scheduler,
+            concurrent_tasks,
+            default_codec,
+        )
+        .await?;
+
+        let state =
+            BallistaContextState::new("localhost".to_string(), addr.port(), config);
+
+        Ok((Self {
+            state: Arc::new(Mutex::new(state)),
+            context: Arc::new(ctx),
+        },executor_runtime) )
     }
 
     /// Create a DataFrame representing an Avro table scan

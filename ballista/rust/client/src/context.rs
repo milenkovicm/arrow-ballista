@@ -77,7 +77,7 @@ impl BallistaContextState {
 
 pub struct BallistaContext {
     state: Arc<Mutex<BallistaContextState>>,
-    context: Arc<SessionContext>,
+    pub context: Arc<SessionContext>,
 }
 
 impl BallistaContext {

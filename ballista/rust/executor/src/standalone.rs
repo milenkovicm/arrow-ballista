@@ -96,7 +96,6 @@ pub async fn new_standalone_executor<
     Ok(())
 }
 
-
 pub async fn _new_standalone_executor<
     T: 'static + AsLogicalPlan,
     U: 'static + AsExecutionPlan,
@@ -135,7 +134,7 @@ pub async fn _new_standalone_executor<
 
     let config = RuntimeConfig::new().with_temp_file_path(work_dir.clone());
     let runtime = Arc::new(RuntimeEnv::new(config).unwrap());
-    
+
     let executor = Arc::new(Executor::new(
         executor_meta,
         &work_dir,

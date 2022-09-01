@@ -49,7 +49,7 @@ mod external_scaler;
 mod grpc;
 mod query_stage_scheduler;
 
-pub(crate) type SessionBuilder = fn(SessionConfig) -> SessionState;
+pub type SessionBuilder = fn(SessionConfig) -> SessionState;
 
 #[derive(Clone)]
 pub struct SchedulerServer<T: 'static + AsLogicalPlan, U: 'static + AsExecutionPlan> {

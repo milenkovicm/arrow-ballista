@@ -282,6 +282,7 @@ impl<T: 'static + AsLogicalPlan, U: 'static + AsExecutionPlan> SchedulerGrpc
         request: Request<GetFileMetadataParams>,
     ) -> Result<Response<GetFileMetadataResult>, Status> {
         // TODO support multiple object stores
+
         let obj_store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         // TODO shouldn't this take a ListingOption object as input?
 

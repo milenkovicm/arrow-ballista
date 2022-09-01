@@ -214,13 +214,15 @@ impl BallistaContext {
     pub async fn _standalone(
         config: &BallistaConfig,
         concurrent_tasks: usize,
+        session_builder: ballista_scheduler::scheduler_server::SessionBuilder
     ) -> ballista_core::error::Result<(Self, Arc<RuntimeEnv>)> {
         use ballista_core::serde::protobuf::PhysicalPlanNode;
         use ballista_core::serde::BallistaCodec;
+        //use ballista_scheduler::scheduler_server::SessionBuilder;
 
         log::info!("Running in local mode. Scheduler will be run in-proc");
 
-        let addr = ballista_scheduler::standalone::new_standalone_scheduler().await?;
+        let addr = ballista_scheduler::standalone::_new_standalone_scheduler(session_builder).await?;
         let scheduler_url = format!("http://localhost:{}", addr.port());
         let mut scheduler = loop {
             match SchedulerGrpcClient::connect(scheduler_url.clone()).await {
@@ -276,10 +278,13 @@ impl BallistaContext {
         let state =
             BallistaContextState::new("localhost".to_string(), addr.port(), config);
 
-        Ok((Self {
-            state: Arc::new(Mutex::new(state)),
-            context: Arc::new(ctx),
-        },executor_runtime) )
+        Ok((
+            Self {
+                state: Arc::new(Mutex::new(state)),
+                context: Arc::new(ctx),
+            },
+            executor_runtime,
+        ))
     }
 
     /// Create a DataFrame representing an Avro table scan

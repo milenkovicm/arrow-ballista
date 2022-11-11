@@ -316,13 +316,19 @@ pub fn create_df_ctx_with_ballista_query_planner_with_table_factories<
     session_id: String,
     config: &BallistaConfig,
     table_factories: HashMap<String, Arc<dyn TableProviderFactory>>,
+    extension_codec: Arc<dyn LogicalExtensionCodec>,
 ) -> SessionContext {
     let planner: Arc<BallistaQueryPlanner<T>> =
-        Arc::new(BallistaQueryPlanner::new(scheduler_url, config.clone()));
+        Arc::new(BallistaQueryPlanner::with_extension(
+            scheduler_url,
+            config.clone(),
+            extension_codec,
+        ));
 
     let session_config = SessionConfig::new()
         .with_target_partitions(config.default_shuffle_partitions())
         .with_information_schema(true);
+
     let mut session_state = SessionState::with_config_rt(
         session_config,
         Arc::new(

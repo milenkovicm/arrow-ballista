@@ -20,12 +20,13 @@ use crate::{
     scheduler_server::SchedulerServer, state::backend::standalone::StandaloneClient,
 };
 use ballista_core::serde::protobuf::PhysicalPlanNode;
-use ballista_core::serde::BallistaCodec;
+use ballista_core::serde::{BallistaCodec, DefaultPhysicalExtensionCodec};
 use ballista_core::utils::create_grpc_server;
 use ballista_core::{
     error::Result, serde::protobuf::scheduler_grpc_server::SchedulerGrpcServer,
     BALLISTA_VERSION,
 };
+use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use datafusion_proto::protobuf::LogicalPlanNode;
 use log::info;
 use std::{net::SocketAddr, sync::Arc};
@@ -39,6 +40,42 @@ pub async fn new_standalone_scheduler() -> Result<SocketAddr> {
             "localhost:50050".to_owned(),
             Arc::new(client),
             BallistaCodec::default(),
+            SchedulerConfig::default(),
+        );
+    scheduler_server.init().await?;
+    let server = SchedulerGrpcServer::new(scheduler_server.clone());
+    // Let the OS assign a random, free port
+    let listener = TcpListener::bind("localhost:0").await?;
+    let addr = listener.local_addr()?;
+    info!(
+        "Ballista v{} Rust Scheduler listening on {:?}",
+        BALLISTA_VERSION, addr
+    );
+    tokio::spawn(
+        create_grpc_server()
+            .add_service(server)
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
+                listener,
+            )),
+    );
+
+    Ok(addr)
+}
+
+pub async fn new_standalone_scheduler_with_extension(
+    extension_codec: Arc<dyn LogicalExtensionCodec>,
+) -> Result<SocketAddr> {
+    let client = StandaloneClient::try_new_temporary()?;
+    let codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> = BallistaCodec::new(
+        extension_codec.clone(),
+        Arc::new(DefaultPhysicalExtensionCodec {}),
+    );
+
+    let mut scheduler_server: SchedulerServer<LogicalPlanNode, PhysicalPlanNode> =
+        SchedulerServer::new(
+            "localhost:50050".to_owned(),
+            Arc::new(client),
+            codec,
             SchedulerConfig::default(),
         );
     scheduler_server.init().await?;

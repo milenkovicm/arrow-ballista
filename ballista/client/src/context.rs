@@ -31,6 +31,7 @@ use ballista_core::utils::{
 };
 use datafusion_proto::protobuf::LogicalPlanNode;
 
+use ballista_core::serde::BallistaCodec;
 use datafusion::catalog::TableReference;
 use datafusion::dataframe::DataFrame;
 use datafusion::datasource::datasource::TableProviderFactory;
@@ -41,7 +42,7 @@ use datafusion::prelude::{
     AvroReadOptions, CsvReadOptions, ParquetReadOptions, SessionConfig, SessionContext,
 };
 use datafusion::sql::parser::{DFParser, Statement as DFStatement};
-
+use datafusion_proto::logical_plan::LogicalExtensionCodec;
 struct BallistaContextState {
     /// Ballista configuration
     config: BallistaConfig,
@@ -95,6 +96,7 @@ impl BallistaContext {
         let connection = create_grpc_client_connection(scheduler_url.clone())
             .await
             .map_err(|e| DataFusionError::Execution(format!("{:?}", e)))?;
+
         let mut scheduler = SchedulerGrpcClient::new(connection);
 
         let remote_session_id = scheduler
@@ -140,7 +142,6 @@ impl BallistaContext {
         concurrent_tasks: usize,
     ) -> ballista_core::error::Result<Self> {
         use ballista_core::serde::protobuf::PhysicalPlanNode;
-        use ballista_core::serde::BallistaCodec;
 
         log::info!("Running in local mode. Scheduler will be run in-proc");
 
@@ -210,15 +211,21 @@ impl BallistaContext {
     pub async fn standalone_with_table_factories(
         config: &BallistaConfig,
         concurrent_tasks: usize,
+        extension_codec: Arc<dyn LogicalExtensionCodec>,
         table_factories: HashMap<String, Arc<dyn TableProviderFactory>>,
     ) -> ballista_core::error::Result<Self> {
-        use ballista_core::serde::protobuf::PhysicalPlanNode;
-        use ballista_core::serde::BallistaCodec;
-        use ballista_core::utils::create_df_ctx_with_ballista_query_planner_with_table_factories;
+        use ballista_core::{
+            serde::{protobuf::PhysicalPlanNode, DefaultPhysicalExtensionCodec},
+            utils::create_df_ctx_with_ballista_query_planner_with_table_factories,
+        };
 
         log::info!("Running in local mode. Scheduler will be run in-proc");
 
-        let addr = ballista_scheduler::standalone::new_standalone_scheduler().await?;
+        let addr =
+            ballista_scheduler::standalone::new_standalone_scheduler_with_extension(
+                extension_codec.clone(),
+            )
+            .await?;
         let scheduler_url = format!("http://localhost:{}", addr.port());
         let mut scheduler = loop {
             match SchedulerGrpcClient::connect(scheduler_url.clone()).await {
@@ -261,16 +268,19 @@ impl BallistaContext {
                 remote_session_id,
                 config,
                 table_factories.clone(),
+                extension_codec.clone(),
             )
         };
 
-        let default_codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> =
-            BallistaCodec::default();
+        let codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> = BallistaCodec::new(
+            extension_codec.clone(),
+            Arc::new(DefaultPhysicalExtensionCodec {}),
+        );
 
         ballista_executor::new_standalone_executor_with_table_factories(
             scheduler,
             concurrent_tasks,
-            default_codec,
+            codec,
             table_factories.clone(),
         )
         .await?;

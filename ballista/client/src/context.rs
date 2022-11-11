@@ -32,6 +32,10 @@ use ballista_core::utils::{
 use datafusion_proto::protobuf::LogicalPlanNode;
 
 use ballista_core::serde::BallistaCodec;
+use ballista_core::{
+    serde::{protobuf::PhysicalPlanNode, PhysicalExtensionCodec},
+    utils::create_df_ctx_with_ballista_query_planner_with_table_factories,
+};
 use datafusion::catalog::TableReference;
 use datafusion::dataframe::DataFrame;
 use datafusion::datasource::datasource::TableProviderFactory;
@@ -141,8 +145,6 @@ impl BallistaContext {
         config: &BallistaConfig,
         concurrent_tasks: usize,
     ) -> ballista_core::error::Result<Self> {
-        use ballista_core::serde::protobuf::PhysicalPlanNode;
-
         log::info!("Running in local mode. Scheduler will be run in-proc");
 
         let addr = ballista_scheduler::standalone::new_standalone_scheduler().await?;
@@ -212,18 +214,15 @@ impl BallistaContext {
         config: &BallistaConfig,
         concurrent_tasks: usize,
         extension_codec: Arc<dyn LogicalExtensionCodec>,
+        physical_extension_codec: Arc<dyn PhysicalExtensionCodec>,
         table_factories: HashMap<String, Arc<dyn TableProviderFactory>>,
     ) -> ballista_core::error::Result<Self> {
-        use ballista_core::{
-            serde::{protobuf::PhysicalPlanNode, DefaultPhysicalExtensionCodec},
-            utils::create_df_ctx_with_ballista_query_planner_with_table_factories,
-        };
-
         log::info!("Running in local mode. Scheduler will be run in-proc");
 
         let addr =
             ballista_scheduler::standalone::new_standalone_scheduler_with_extension(
                 extension_codec.clone(),
+                physical_extension_codec.clone(),
             )
             .await?;
         let scheduler_url = format!("http://localhost:{}", addr.port());
@@ -272,10 +271,8 @@ impl BallistaContext {
             )
         };
 
-        let codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> = BallistaCodec::new(
-            extension_codec.clone(),
-            Arc::new(DefaultPhysicalExtensionCodec {}),
-        );
+        let codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> =
+            BallistaCodec::new(extension_codec.clone(), physical_extension_codec.clone());
 
         ballista_executor::new_standalone_executor_with_table_factories(
             scheduler,

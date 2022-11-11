@@ -20,7 +20,7 @@ use crate::{
     scheduler_server::SchedulerServer, state::backend::standalone::StandaloneClient,
 };
 use ballista_core::serde::protobuf::PhysicalPlanNode;
-use ballista_core::serde::{BallistaCodec, DefaultPhysicalExtensionCodec};
+use ballista_core::serde::{BallistaCodec, PhysicalExtensionCodec};
 use ballista_core::utils::create_grpc_server;
 use ballista_core::{
     error::Result, serde::protobuf::scheduler_grpc_server::SchedulerGrpcServer,
@@ -64,12 +64,11 @@ pub async fn new_standalone_scheduler() -> Result<SocketAddr> {
 
 pub async fn new_standalone_scheduler_with_extension(
     extension_codec: Arc<dyn LogicalExtensionCodec>,
+    physical_extension_codec: Arc<dyn PhysicalExtensionCodec>,
 ) -> Result<SocketAddr> {
     let client = StandaloneClient::try_new_temporary()?;
-    let codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> = BallistaCodec::new(
-        extension_codec.clone(),
-        Arc::new(DefaultPhysicalExtensionCodec {}),
-    );
+    let codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> =
+        BallistaCodec::new(extension_codec, physical_extension_codec);
 
     let mut scheduler_server: SchedulerServer<LogicalPlanNode, PhysicalPlanNode> =
         SchedulerServer::new(

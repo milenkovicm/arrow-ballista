@@ -29,7 +29,9 @@ pub mod terminate;
 mod cpu_bound_executor;
 mod standalone;
 
-pub use standalone::new_standalone_executor;
+pub use standalone::{
+    new_standalone_executor, new_standalone_executor_with_table_factories,
+};
 
 use log::info;
 

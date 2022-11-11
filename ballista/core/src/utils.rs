@@ -24,6 +24,7 @@ use crate::serde::scheduler::PartitionStats;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::{ipc::writer::FileWriter, record_batch::RecordBatch};
+use datafusion::datasource::datasource::TableProviderFactory;
 use datafusion::datasource::object_store::{ObjectStoreProvider, ObjectStoreRegistry};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::{
@@ -53,6 +54,7 @@ use log::error;
 #[cfg(feature = "s3")]
 use object_store::aws::AmazonS3Builder;
 use object_store::ObjectStore;
+use std::collections::HashMap;
 use std::io::{BufWriter, Write};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -299,6 +301,36 @@ pub fn create_df_ctx_with_ballista_query_planner<T: 'static + AsLogicalPlan>(
         Arc::new(
             RuntimeEnv::new(with_object_store_provider(RuntimeConfig::default()))
                 .unwrap(),
+        ),
+    )
+    .with_query_planner(planner);
+    session_state.session_id = session_id;
+    // the SessionContext created here is the client side context, but the session_id is from server side.
+    SessionContext::with_state(session_state)
+}
+
+pub fn create_df_ctx_with_ballista_query_planner_with_table_factories<
+    T: 'static + AsLogicalPlan,
+>(
+    scheduler_url: String,
+    session_id: String,
+    config: &BallistaConfig,
+    table_factories: HashMap<String, Arc<dyn TableProviderFactory>>,
+) -> SessionContext {
+    let planner: Arc<BallistaQueryPlanner<T>> =
+        Arc::new(BallistaQueryPlanner::new(scheduler_url, config.clone()));
+
+    let session_config = SessionConfig::new()
+        .with_target_partitions(config.default_shuffle_partitions())
+        .with_information_schema(true);
+    let mut session_state = SessionState::with_config_rt(
+        session_config,
+        Arc::new(
+            RuntimeEnv::new(
+                with_object_store_provider(RuntimeConfig::default())
+                    .with_table_factories(table_factories),
+            )
+            .unwrap(),
         ),
     )
     .with_query_planner(planner);

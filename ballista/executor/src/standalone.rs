@@ -27,9 +27,11 @@ use ballista_core::{
     serde::protobuf::{scheduler_grpc_client::SchedulerGrpcClient, ExecutorRegistration},
     BALLISTA_VERSION,
 };
+use datafusion::datasource::datasource::TableProviderFactory;
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion_proto::logical_plan::AsLogicalPlan;
 use log::info;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
@@ -74,6 +76,71 @@ pub async fn new_standalone_executor<
 
     let config = with_object_store_provider(
         RuntimeConfig::new().with_temp_file_path(work_dir.clone()),
+    );
+
+    let executor = Arc::new(Executor::new(
+        executor_meta,
+        &work_dir,
+        Arc::new(RuntimeEnv::new(config).unwrap()),
+        Arc::new(LoggingMetricsCollector::default()),
+        concurrent_tasks,
+    ));
+
+    let service = BallistaFlightService::new();
+    let server = FlightServiceServer::new(service);
+    tokio::spawn(
+        create_grpc_server()
+            .add_service(server)
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(
+                listener,
+            )),
+    );
+
+    tokio::spawn(execution_loop::poll_loop(scheduler, executor, codec));
+    Ok(())
+}
+
+pub async fn new_standalone_executor_with_table_factories<
+    T: 'static + AsLogicalPlan,
+    U: 'static + AsExecutionPlan,
+>(
+    scheduler: SchedulerGrpcClient<Channel>,
+    concurrent_tasks: usize,
+    codec: BallistaCodec<T, U>,
+    table_factories: HashMap<String, Arc<dyn TableProviderFactory>>,
+) -> Result<()> {
+    // Let the OS assign a random, free port
+    let listener = TcpListener::bind("localhost:0").await?;
+    let addr = listener.local_addr()?;
+    info!(
+        "Ballista v{} Rust Executor listening on {:?}",
+        BALLISTA_VERSION, addr
+    );
+
+    let executor_meta = ExecutorRegistration {
+        id: Uuid::new_v4().to_string(), // assign this executor a unique ID
+        optional_host: Some(OptionalHost::Host("localhost".to_string())),
+        port: addr.port() as u32,
+        // TODO Make it configurable
+        grpc_port: 50020,
+        specification: Some(
+            ExecutorSpecification {
+                task_slots: concurrent_tasks as u32,
+            }
+            .into(),
+        ),
+    };
+    let work_dir = TempDir::new()?
+        .into_path()
+        .into_os_string()
+        .into_string()
+        .unwrap();
+    info!("work_dir: {}", work_dir);
+
+    let config = with_object_store_provider(
+        RuntimeConfig::new()
+            .with_temp_file_path(work_dir.clone())
+            .with_table_factories(table_factories),
     );
 
     let executor = Arc::new(Executor::new(

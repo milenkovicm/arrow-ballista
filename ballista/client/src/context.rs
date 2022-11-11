@@ -33,6 +33,7 @@ use datafusion_proto::protobuf::LogicalPlanNode;
 
 use datafusion::catalog::TableReference;
 use datafusion::dataframe::DataFrame;
+use datafusion::datasource::datasource::TableProviderFactory;
 use datafusion::datasource::{source_as_provider, TableProvider};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::{CreateExternalTable, LogicalPlan, TableScan};
@@ -193,6 +194,84 @@ impl BallistaContext {
             scheduler,
             concurrent_tasks,
             default_codec,
+        )
+        .await?;
+
+        let state =
+            BallistaContextState::new("localhost".to_string(), addr.port(), config);
+
+        Ok(Self {
+            state: Arc::new(Mutex::new(state)),
+            context: Arc::new(ctx),
+        })
+    }
+
+    #[cfg(feature = "standalone")]
+    pub async fn standalone_with_table_factories(
+        config: &BallistaConfig,
+        concurrent_tasks: usize,
+        table_factories: HashMap<String, Arc<dyn TableProviderFactory>>,
+    ) -> ballista_core::error::Result<Self> {
+        use ballista_core::serde::protobuf::PhysicalPlanNode;
+        use ballista_core::serde::BallistaCodec;
+        use ballista_core::utils::create_df_ctx_with_ballista_query_planner_with_table_factories;
+
+        log::info!("Running in local mode. Scheduler will be run in-proc");
+
+        let addr = ballista_scheduler::standalone::new_standalone_scheduler().await?;
+        let scheduler_url = format!("http://localhost:{}", addr.port());
+        let mut scheduler = loop {
+            match SchedulerGrpcClient::connect(scheduler_url.clone()).await {
+                Err(_) => {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    log::info!("Attempting to connect to in-proc scheduler...");
+                }
+                Ok(scheduler) => break scheduler,
+            }
+        };
+
+        let remote_session_id = scheduler
+            .execute_query(ExecuteQueryParams {
+                query: None,
+                settings: config
+                    .settings()
+                    .iter()
+                    .map(|(k, v)| KeyValuePair {
+                        key: k.to_owned(),
+                        value: v.to_owned(),
+                    })
+                    .collect::<Vec<_>>(),
+                optional_session_id: None,
+            })
+            .await
+            .map_err(|e| DataFusionError::Execution(format!("{:?}", e)))?
+            .into_inner()
+            .session_id;
+
+        info!(
+            "Server side SessionContext created with session id: {}",
+            remote_session_id
+        );
+
+        let ctx = {
+            create_df_ctx_with_ballista_query_planner_with_table_factories::<
+                LogicalPlanNode,
+            >(
+                scheduler_url,
+                remote_session_id,
+                config,
+                table_factories.clone(),
+            )
+        };
+
+        let default_codec: BallistaCodec<LogicalPlanNode, PhysicalPlanNode> =
+            BallistaCodec::default();
+
+        ballista_executor::new_standalone_executor_with_table_factories(
+            scheduler,
+            concurrent_tasks,
+            default_codec,
+            table_factories.clone(),
         )
         .await?;
 
@@ -410,10 +489,26 @@ impl BallistaContext {
                             .await?;
                             Ok(Arc::new(DataFrame::new(ctx.state.clone(), &plan)))
                         }
-                        _ => Err(DataFusionError::NotImplemented(format!(
-                            "Unsupported file type {:?}.",
-                            file_type
-                        ))),
+                        file_type => {
+                            let file_type = file_type.to_lowercase();
+                            let state = ctx.state.read().clone();
+                            let factory = state
+                                .runtime_env
+                                .table_factories
+                                .get(file_type.as_str())
+                                .ok_or_else(|| {
+                                    DataFusionError::Execution(format!(
+                                        "Ballista unable to find factory for {}",
+                                        file_type
+                                    ))
+                                })?;
+                            let table = (*factory).create(location.as_str()).await?;
+                            self.register_table(name.as_str(), table.clone())?;
+
+                            let df = self.context.read_table(table)?;
+                            let plan = df.to_logical_plan()?;
+                            Ok(Arc::new(DataFrame::new(ctx.state.clone(), &plan)))
+                        }
                     },
                     (true, true) => {
                         Ok(Arc::new(DataFrame::new(ctx.state.clone(), &plan)))

@@ -37,6 +37,7 @@ use arrow_flight::{
 };
 use base64::Engine;
 use futures::Stream;
+use hyper::body::Bytes;
 use log::{debug, error, warn};
 use std::convert::TryFrom;
 use std::pin::Pin;
@@ -101,7 +102,9 @@ impl FlightSqlServiceImpl {
             Field::new("table_name", DataType::Utf8, false),
             Field::new("table_type", DataType::Utf8, false),
         ]));
-        let tables = ctx.tables()?; // resolved in #501
+        // FIXME: we need to make this right 
+        //let tables = ctx.tables()?; // resolved in #501
+        let tables : Vec<String> = vec![];
         let names: Vec<_> = tables.iter().map(|it| Some(it.as_str())).collect();
         let types: Vec<_> = names.iter().map(|_| Some("TABLE")).collect();
         let cats: Vec<_> = names.iter().map(|_| None).collect();
@@ -298,6 +301,8 @@ impl FlightSqlServiceImpl {
             let fiep = FlightEndpoint {
                 ticket: Some(ticket),
                 location: vec![loc],
+                expiration_time: None,
+                app_metadata: Bytes::new(),
             };
             fieps.push(fiep);
         }
@@ -327,6 +332,8 @@ impl FlightSqlServiceImpl {
         let fiep = FlightEndpoint {
             ticket: Some(ticket),
             location: vec![loc],
+            expiration_time: None,
+            app_metadata: Bytes::new(),
         };
         let fieps = vec![fiep];
         Ok(fieps)
@@ -406,6 +413,7 @@ impl FlightSqlServiceImpl {
             total_records: num_rows,
             total_bytes: num_bytes,
             ordered: false,
+            app_metadata: Bytes::new(),
         };
         Response::new(info)
     }

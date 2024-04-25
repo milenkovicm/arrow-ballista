@@ -26,6 +26,8 @@ use datafusion::execution::FunctionRegistry;
 use datafusion::physical_plan::{ExecutionPlan, Partitioning};
 use datafusion_proto::common::proto_error;
 use datafusion_proto::physical_plan::from_proto::parse_protobuf_hash_partitioning;
+use datafusion_proto::physical_plan::to_proto::serialize_physical_exprs;
+use datafusion_proto::physical_plan::DefaultPhysicalExtensionCodec;
 use datafusion_proto::protobuf::{LogicalPlanNode, PhysicalPlanNode};
 use datafusion_proto::{
     convert_required,
@@ -181,12 +183,12 @@ impl PhysicalExtensionCodec for BallistaPhysicalExtensionCodec {
             }
             PhysicalPlanType::UnresolvedShuffle(unresolved_shuffle) => {
                 let schema = Arc::new(convert_required!(unresolved_shuffle.schema)?);
-                Ok(Arc::new(UnresolvedShuffleExec {
-                    stage_id: unresolved_shuffle.stage_id as usize,
+                Ok(Arc::new(UnresolvedShuffleExec::new (
+                    unresolved_shuffle.stage_id as usize,
                     schema,
-                    output_partition_count: unresolved_shuffle.output_partition_count
+                    unresolved_shuffle.output_partition_count
                         as usize,
-                }))
+                )))
             }
         }
     }
@@ -201,11 +203,11 @@ impl PhysicalExtensionCodec for BallistaPhysicalExtensionCodec {
             // to get the true output partitioning
             let output_partitioning = match exec.shuffle_output_partitioning() {
                 Some(Partitioning::Hash(exprs, partition_count)) => {
+                    // TODO: not quite sure this is the right approach 
+                    let codec = DefaultPhysicalExtensionCodec {};
+                    let hash_expr = serialize_physical_exprs(exprs.clone(), &codec)?;
                     Some(datafusion_proto::protobuf::PhysicalHashRepartition {
-                        hash_expr: exprs
-                            .iter()
-                            .map(|expr| expr.clone().try_into())
-                            .collect::<Result<Vec<_>, DataFusionError>>()?,
+                        hash_expr,
                         partition_count: *partition_count as u64,
                     })
                 }

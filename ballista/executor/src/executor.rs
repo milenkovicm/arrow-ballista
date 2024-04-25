@@ -211,10 +211,9 @@ mod test {
     use crate::execution_engine::DefaultQueryStageExec;
     use ballista_core::serde::scheduler::PartitionId;
     use datafusion::error::{DataFusionError, Result};
-    use datafusion::physical_expr::PhysicalSortExpr;
+    use datafusion::physical_expr::EquivalenceProperties;
     use datafusion::physical_plan::{
-        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-        SendableRecordBatchStream, Statistics,
+        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, PlanProperties, RecordBatchStream, SendableRecordBatchStream, Statistics
     };
     use datafusion::prelude::SessionContext;
     use futures::Stream;
@@ -247,7 +246,21 @@ mod test {
 
     /// An ExecutionPlan which will never terminate
     #[derive(Debug)]
-    pub struct NeverendingOperator;
+    pub struct NeverendingOperator {
+        properties: PlanProperties
+    }
+    impl NeverendingOperator {
+        fn new() -> Self {
+            let properties = PlanProperties::new(
+                EquivalenceProperties::new(Schema::empty().into()),
+                Partitioning::UnknownPartitioning(1),
+                datafusion::physical_plan::ExecutionMode::Bounded,
+            );
+            Self {
+                properties
+            }
+        }
+    }
 
     impl DisplayAs for NeverendingOperator {
         fn fmt_as(
@@ -272,13 +285,13 @@ mod test {
             Arc::new(Schema::empty())
         }
 
-        fn output_partitioning(&self) -> Partitioning {
-            Partitioning::UnknownPartitioning(1)
-        }
+        // fn output_partitioning(&self) -> Partitioning {
+        //     Partitioning::UnknownPartitioning(1)
+        // }
 
-        fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-            None
-        }
+        // fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        //     None
+        // }
 
         fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
             vec![]
@@ -302,6 +315,10 @@ mod test {
         fn statistics(&self) -> Result<Statistics> {
             Ok(Statistics::new_unknown(&self.schema()))
         }
+        
+        fn properties(&self) -> &datafusion::physical_plan::PlanProperties {
+            &self.properties
+        }
     }
 
     #[tokio::test]
@@ -316,7 +333,7 @@ mod test {
         let shuffle_write = ShuffleWriterExec::try_new(
             "job-id".to_owned(),
             1,
-            Arc::new(NeverendingOperator),
+            Arc::new(NeverendingOperator::new()),
             work_dir.clone(),
             None,
         )

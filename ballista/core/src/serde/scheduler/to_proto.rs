@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use datafusion::error::DataFusionError;
 use datafusion::physical_plan::metrics::{MetricValue, MetricsSet};
+use datafusion_proto::physical_plan::to_proto::serialize_physical_exprs;
+use datafusion_proto::physical_plan::DefaultPhysicalExtensionCodec;
 use std::convert::TryInto;
 
 use crate::error::BallistaError;
@@ -101,11 +102,11 @@ pub fn hash_partitioning_to_proto(
 ) -> Result<Option<datafusion_protobuf::PhysicalHashRepartition>, BallistaError> {
     match output_partitioning {
         Some(Partitioning::Hash(exprs, partition_count)) => {
+            // TODO: not quite sure this is the right approach 
+            let codec = DefaultPhysicalExtensionCodec {};
+            let hash_expr = serialize_physical_exprs(exprs.clone(), &codec)?;
             Ok(Some(datafusion_protobuf::PhysicalHashRepartition {
-                hash_expr: exprs
-                    .iter()
-                    .map(|expr| expr.clone().try_into())
-                    .collect::<Result<Vec<_>, DataFusionError>>()?,
+                hash_expr,
                 partition_count: *partition_count as u64,
             }))
         }

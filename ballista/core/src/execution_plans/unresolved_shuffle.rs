@@ -21,10 +21,11 @@ use std::sync::Arc;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::TaskContext;
-use datafusion::physical_plan::expressions::PhysicalSortExpr;
+
+use datafusion::physical_expr::EquivalenceProperties;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, PlanProperties,
+    SendableRecordBatchStream, Statistics,
 };
 
 /// UnresolvedShuffleExec represents a dependency on the results of a ShuffleWriterExec node which hasn't computed yet.
@@ -41,6 +42,8 @@ pub struct UnresolvedShuffleExec {
 
     // The partition count this node will have once it is replaced with a ShuffleReaderExec
     pub output_partition_count: usize,
+    /// Plan properties
+    properties: PlanProperties,
 }
 
 impl UnresolvedShuffleExec {
@@ -50,10 +53,17 @@ impl UnresolvedShuffleExec {
         schema: SchemaRef,
         output_partition_count: usize,
     ) -> Self {
+        let properties = PlanProperties::new(
+            EquivalenceProperties::new(schema.clone()),
+            Partitioning::UnknownPartitioning(output_partition_count),
+            datafusion::physical_plan::ExecutionMode::Bounded,
+        );
+
         Self {
             stage_id,
             schema,
             output_partition_count,
+            properties,
         }
     }
 }
@@ -81,15 +91,15 @@ impl ExecutionPlan for UnresolvedShuffleExec {
         self.schema.clone()
     }
 
-    fn output_partitioning(&self) -> Partitioning {
-        // TODO the output partition is known and should be populated here!
-        // see https://github.com/apache/arrow-datafusion/issues/758
-        Partitioning::UnknownPartitioning(self.output_partition_count)
-    }
+    // fn output_partitioning(&self) -> Partitioning {
+    //     // TODO the output partition is known and should be populated here!
+    //     // see https://github.com/apache/arrow-datafusion/issues/758
+    //     Partitioning::UnknownPartitioning(self.output_partition_count)
+    // }
 
-    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        None
-    }
+    // fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+    //     None
+    // }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
         vec![]
@@ -119,5 +129,9 @@ impl ExecutionPlan for UnresolvedShuffleExec {
         // The full statistics are computed in the `ShuffleReaderExec` node
         // that replaces this one once the previous stage is completed.
         Ok(Statistics::new_unknown(&self.schema()))
+    }
+
+    fn properties(&self) -> &datafusion::physical_plan::PlanProperties {
+        &self.properties
     }
 }

@@ -474,9 +474,9 @@ impl BallistaContext {
 #[cfg(feature = "standalone")]
 mod standalone_tests {
     use ballista_core::error::Result;
+    use datafusion::config::TableParquetOptions;
     use datafusion::dataframe::DataFrameWriteOptions;
     use datafusion::datasource::listing::ListingTableUrl;
-    use datafusion::parquet::file::properties::WriterProperties;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -503,7 +503,7 @@ mod standalone_tests {
         df.write_parquet(
             &file_path,
             DataFrameWriteOptions::default(),
-            Some(WriterProperties::default()),
+            Some(TableParquetOptions::default()),
         )
         .await?;
         Ok(())
@@ -658,7 +658,7 @@ mod standalone_tests {
                         collect_stat: x.collect_stat,
                         target_partitions: x.target_partitions,
                         file_sort_order: vec![],
-                        file_type_write_options: None,
+                        //file_type_write_options: None,
                     };
 
                     let table_paths = listing_table

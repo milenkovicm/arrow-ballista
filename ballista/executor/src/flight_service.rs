@@ -18,6 +18,7 @@
 //! Implementation of the Apache Arrow Flight protocol that wraps an executor.
 
 use arrow::ipc::reader::StreamReader;
+use arrow_flight::PollInfo;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::pin::Pin;
@@ -75,6 +76,10 @@ impl FlightService for BallistaFlightService {
     type HandshakeStream = BoxedFlightStream<HandshakeResponse>;
     type ListActionsStream = BoxedFlightStream<ActionType>;
     type ListFlightsStream = BoxedFlightStream<FlightInfo>;
+    
+    async fn poll_flight_info(&self, _: tonic::Request<FlightDescriptor>) -> std::result::Result<tonic::Response<PollInfo>, tonic::Status> { 
+        todo!("poll flight info has not been implemented") 
+    }
 
     async fn do_get(
         &self,

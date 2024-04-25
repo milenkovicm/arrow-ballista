@@ -25,10 +25,9 @@ use std::{any::Any, pin::Pin};
 use datafusion::arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::TaskContext;
-use datafusion::physical_plan::expressions::PhysicalSortExpr;
+use datafusion::physical_expr::EquivalenceProperties;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, PlanProperties, SendableRecordBatchStream, Statistics
 };
 use datafusion::{error::Result, physical_plan::RecordBatchStream};
 use futures::stream::SelectAll;
@@ -39,11 +38,17 @@ use futures::Stream;
 #[derive(Debug, Clone)]
 pub struct CollectExec {
     plan: Arc<dyn ExecutionPlan>,
+    properties: PlanProperties
 }
 
 impl CollectExec {
     pub fn new(plan: Arc<dyn ExecutionPlan>) -> Self {
-        Self { plan }
+        let properties = PlanProperties::new(
+            EquivalenceProperties::new(plan.schema().clone()),
+            Partitioning::UnknownPartitioning(1),
+            datafusion::physical_plan::ExecutionMode::Bounded,
+        );
+        Self { plan, properties }
     }
 }
 
@@ -70,13 +75,13 @@ impl ExecutionPlan for CollectExec {
         self.plan.schema()
     }
 
-    fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
-    }
+    // fn output_partitioning(&self) -> Partitioning {
+    //     Partitioning::UnknownPartitioning(1)
+    // }
 
-    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        None
-    }
+    // fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+    //     None
+    // }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
         vec![self.plan.clone()]
@@ -95,7 +100,7 @@ impl ExecutionPlan for CollectExec {
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         assert_eq!(0, partition);
-        let num_partitions = self.plan.output_partitioning().partition_count();
+        let num_partitions = self.plan.properties().output_partitioning().partition_count();
 
         let streams = (0..num_partitions)
             .map(|i| self.plan.execute(i, context.clone()))
@@ -110,6 +115,10 @@ impl ExecutionPlan for CollectExec {
 
     fn statistics(&self) -> Result<Statistics> {
         self.plan.statistics()
+    }
+    
+    fn properties(&self) -> &datafusion::physical_plan::PlanProperties {
+        &self.properties
     }
 }
 

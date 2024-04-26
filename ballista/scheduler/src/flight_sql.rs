@@ -38,6 +38,7 @@ use arrow_flight::{
 use base64::Engine;
 use futures::Stream;
 use hyper::body::Bytes;
+use itertools::Itertools;
 use log::{debug, error, warn};
 use std::convert::TryFrom;
 use std::pin::Pin;
@@ -104,7 +105,7 @@ impl FlightSqlServiceImpl {
         ]));
         // FIXME: we need to make this right 
         //let tables = ctx.tables()?; // resolved in #501
-        let tables : Vec<String> = vec![];
+        let tables : Vec<String> = ctx.catalog_names().iter().flat_map(|catalog_name| ctx.catalog(catalog_name).unwrap().schema_names().into_iter()).collect_vec();
         let names: Vec<_> = tables.iter().map(|it| Some(it.as_str())).collect();
         let types: Vec<_> = names.iter().map(|_| Some("TABLE")).collect();
         let cats: Vec<_> = names.iter().map(|_| None).collect();

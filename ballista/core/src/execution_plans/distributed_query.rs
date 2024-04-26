@@ -40,7 +40,6 @@ use datafusion::physical_plan::{
 use datafusion_proto::logical_plan::{
     AsLogicalPlan, DefaultLogicalExtensionCodec, LogicalExtensionCodec,
 };
-use datafusion_proto::protobuf::DfSchema;
 use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
 use log::{error, info};
 use std::any::Any;

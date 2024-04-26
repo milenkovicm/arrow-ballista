@@ -254,8 +254,10 @@ impl RecordBatchStream for LocalShuffleStream {
 /// Adapter for a tokio ReceiverStream that implements the SendableRecordBatchStream interface
 struct AbortableReceiverStream {
     inner: ReceiverStream<result::Result<SendableRecordBatchStream, BallistaError>>,
-    join_handles: Vec<SpawnedTask<()>>, //#[allow(dead_code)]
-                                        //drop_helper: AbortOnDropMany<()>,
+    #[allow(dead_code)]
+    join_handles: Vec<SpawnedTask<()>>, 
+    //#[allow(dead_code)]
+    //drop_helper: AbortOnDropMany<()>,
 }
 
 impl AbortableReceiverStream {

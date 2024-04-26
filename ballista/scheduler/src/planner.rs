@@ -533,11 +533,12 @@ order by
         );
 
         let hash_agg = downcast_exec!(input, AggregateExec);
+        
+        // TODO: not sure about this step 
+        // let projection = hash_agg.children()[0].clone();
+        // let projection = downcast_exec!(projection, ProjectionExec);
 
-        let projection = hash_agg.children()[0].clone();
-        let projection = downcast_exec!(projection, ProjectionExec);
-
-        let coalesce_batches = projection.children()[0].clone();
+        let coalesce_batches = hash_agg.children()[0].clone();
         let coalesce_batches = downcast_exec!(coalesce_batches, CoalesceBatchesExec);
 
         let join = coalesce_batches.children()[0].clone();

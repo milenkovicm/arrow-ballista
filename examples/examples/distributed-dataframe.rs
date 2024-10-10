@@ -16,7 +16,7 @@
 // under the License.
 
 use ballista::prelude::*;
-use datafusion::prelude::{col, lit, ParquetReadOptions};
+use datafusion::prelude::{col, lit, ParquetReadOptions, SessionContext};
 
 /// This example demonstrates executing a simple query against an Arrow data source (Parquet) and
 /// fetching results, using the DataFrame trait
@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
     let config = BallistaConfig::builder()
         .set("ballista.shuffle.partitions", "4")
         .build()?;
-    let ctx = BallistaContext::remote("localhost", 50050, &config).await?;
+    let ctx = SessionContext::remote("localhost", 50050, &config).await?;
 
     let filename = "testdata/alltypes_plain.parquet";
 

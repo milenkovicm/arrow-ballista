@@ -43,4 +43,6 @@ tokio = { workspace = true, features = [
     "sync",
     "parking_lot"
 ] }
+env_logger = { workspace = true }
+log = { workspace = true }
 

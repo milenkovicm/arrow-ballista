@@ -76,6 +76,7 @@ impl BallistaContextState {
     }
 }
 
+#[deprecated]
 pub struct BallistaContext {
     state: Arc<Mutex<BallistaContextState>>,
     context: Arc<SessionContext>,
@@ -477,6 +478,10 @@ impl BallistaContext {
     pub async fn execute_logical_plan(&self, plan: LogicalPlan) -> Result<DataFrame> {
         let ctx = self.context.clone();
         ctx.execute_logical_plan(plan).await
+    }
+
+    pub fn ctx(&self) -> SessionContext {
+        self.context().clone()
     }
 }
 

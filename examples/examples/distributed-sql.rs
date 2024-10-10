@@ -16,7 +16,7 @@
 // under the License.
 
 use ballista::prelude::*;
-use datafusion::prelude::CsvReadOptions;
+use datafusion::prelude::{CsvReadOptions, SessionContext};
 
 /// This example demonstrates executing a simple query against an Arrow data source (CSV) and
 /// fetching results, using SQL
@@ -25,7 +25,8 @@ async fn main() -> Result<()> {
     let config = BallistaConfig::builder()
         .set("ballista.shuffle.partitions", "4")
         .build()?;
-    let ctx = BallistaContext::remote("localhost", 50050, &config).await?;
+
+    let ctx = SessionContext::remote("localhost", 50050, &config).await?;
 
     // register csv file with the execution context
     ctx.register_csv(

@@ -15,30 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ballista::prelude::{BallistaConfig, BallistaContext, Result};
+use ballista::prelude::*;
 use ballista_examples::test_util;
-use datafusion::execution::options::ParquetReadOptions;
+use datafusion::{error::DataFusionError, prelude::SessionContext};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let config = BallistaConfig::builder()
-        .set("ballista.shuffle.partitions", "1")
-        .build()?;
-
-    let ctx = BallistaContext::standalone(&config, 2).await?;
+async fn main() -> datafusion::error::Result<()> {
+    let _ = env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_filters(
+            " ballista_scheduler-rs=debug,ballista_executor=debug,datafusion=debug",
+        )
+        .is_test(true)
+        .try_init();
 
     let testdata = test_util::examples_test_data();
 
-    // register parquet file with the execution context
+    let config = BallistaConfig::new()
+        .map_err(|e| DataFusionError::Configuration(e.to_string()))?;
+
+    let ctx = SessionContext::ballista_standalone(&config).await?;
     ctx.register_parquet(
         "test",
         &format!("{testdata}/alltypes_plain.parquet"),
-        ParquetReadOptions::default(),
+        Default::default(),
     )
     .await?;
 
-    let df = ctx.sql("select count(1) from test").await?;
+    // let df = ctx.sql("select count(1) from test").await?;
+    // df.show().await?;
 
-    df.show().await?;
+    ctx.sql("select * from test")
+        .await?
+        .write_csv("../target/p/", Default::default(), Default::default())
+        .await?;
+
+    ctx.sql("select * from test").await?.show().await?;
+
     Ok(())
 }

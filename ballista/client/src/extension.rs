@@ -25,8 +25,33 @@ use ballista_core::{
 use datafusion::{error::DataFusionError, prelude::SessionContext};
 use datafusion_proto::protobuf::LogicalPlanNode;
 
-/// [SessionContext] extension which provides Ballista distribution
-/// support to DataFusion
+/// Module provides [SessionContextExt] which adds `standalone*` and `remote*`
+/// methods to [SessionContext].
+///
+/// Provided methods set up [SessionContext] with [BallistaQueryPlanner](ballista_core::utils), which
+/// handles running plans on Ballista clusters.
+///
+///```no_run
+/// use ballista::prelude::SessionContextExt;
+/// use datafusion::prelude::SessionContext;
+///
+/// let ctx: SessionContext = SessionContext::remote("localhost", 50000).await?;
+///```
+///
+/// [SessionContextExt::standalone()] provides an easy way to start up
+/// local cluster. It is an optional feature which should be enabled
+/// with `standalone`
+///
+///```no_run
+/// use ballista::prelude::SessionContextExt;
+/// use datafusion::prelude::SessionContext;
+///
+/// let ctx: SessionContext = SessionContext::standalone().await?;
+///```
+///
+/// There are still few limitations on query distribution, thus not all
+/// [SessionContext] functionalities are supported.
+///
 #[async_trait::async_trait]
 pub trait SessionContextExt {
     /// Create a context for executing queries against a standalone Ballista scheduler instance

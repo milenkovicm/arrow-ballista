@@ -35,7 +35,11 @@ use datafusion_proto::protobuf::LogicalPlanNode;
 /// use ballista::prelude::SessionContextExt;
 /// use datafusion::prelude::SessionContext;
 ///
+/// #[tokio::main]
+/// async fn main() {
+///
 /// let ctx: SessionContext = SessionContext::remote("localhost", 50000).await?;
+/// }
 ///```
 ///
 /// [SessionContextExt::standalone()] provides an easy way to start up
@@ -46,7 +50,11 @@ use datafusion_proto::protobuf::LogicalPlanNode;
 /// use ballista::prelude::SessionContextExt;
 /// use datafusion::prelude::SessionContext;
 ///
+/// #[tokio::main]
+/// async fn main() {
+///
 /// let ctx: SessionContext = SessionContext::standalone().await?;
+/// }
 ///```
 ///
 /// There are still few limitations on query distribution, thus not all
@@ -66,13 +74,6 @@ pub trait SessionContextExt {
     #[cfg(feature = "standalone")]
     async fn standalone() -> datafusion::error::Result<SessionContext>;
 
-    // To be added at the later stage
-    // #[cfg(feature = "standalone")]
-    // async fn standalone_with_state(
-    //     config: &BallistaConfig,
-    //     session_state: SessionState,
-    // ) -> datafusion::error::Result<SessionContext>;
-
     /// Create a context for executing queries against a remote Ballista scheduler instance
     async fn remote_with_config(
         host: &str,
@@ -82,14 +83,6 @@ pub trait SessionContextExt {
 
     /// Create a context for executing queries against a remote Ballista scheduler instance
     async fn remote(host: &str, port: u16) -> datafusion::error::Result<SessionContext>;
-
-    // To be added at the later stage
-    // async fn remote_with_state(
-    //     host: &str,
-    //     port: u16,
-    //     config: &BallistaConfig,
-    //     session_state: SessionState,
-    // ) -> datafusion::error::Result<SessionContext>;
 }
 
 #[async_trait::async_trait]
@@ -149,6 +142,7 @@ impl SessionContextExt for SessionContext {
         let config = BallistaConfig::builder()
             .build()
             .map_err(|e| DataFusionError::Configuration(e.to_string()))?;
+
         Self::remote_with_config(host, port, &config).await
     }
 

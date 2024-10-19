@@ -16,6 +16,7 @@
 // under the License.
 
 use pyo3::prelude::*;
+pub mod builder;
 pub mod context;
 mod utils;
 
@@ -26,7 +27,10 @@ fn pyballista_internal(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
     // Ballista structs
     m.add_class::<PySessionContext>()?;
+    m.add_class::<crate::builder::Ballista>()?;
     // DataFusion structs
     m.add_class::<datafusion_python::dataframe::PyDataFrame>()?;
+    //m.add_class::<datafusion_python::context::PySessionContext>()?;
+
     Ok(())
 }

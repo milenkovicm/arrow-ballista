@@ -23,6 +23,7 @@ use ballista::prelude::BallistaConfig;
 use ballista_core::serde::{
     protobuf::scheduler_grpc_client::SchedulerGrpcClient, BallistaCodec,
 };
+use datafusion::prelude::SessionConfig;
 
 // /// Remote ballista cluster to be used for local testing.
 // static BALLISTA_CLUSTER: tokio::sync::OnceCell<(String, u16)> =

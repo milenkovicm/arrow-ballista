@@ -42,13 +42,7 @@ env_logger = { workspace = true }
 log = { workspace = true }
 object_store = { workspace = true, features = ["aws"] }
 parking_lot = { workspace = true }
-tokio = { workspace = true, features = [
-    "macros",
-    "rt",
-    "rt-multi-thread",
-    "sync",
-    "parking_lot"
-] }
+tokio = { workspace = true, features = ["full"] }
 url = { workspace = true }
 
 [dev-dependencies]

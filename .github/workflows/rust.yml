@@ -117,7 +117,7 @@ jobs:
           export PATH=$PATH:$HOME/d/protoc/bin
           export ARROW_TEST_DATA=$(pwd)/testing/data
           export PARQUET_TEST_DATA=$(pwd)/parquet-testing/data
-          cargo test --features=testcontainers
+          cargo test --all-features
         env:
           CARGO_HOME: "/github/home/.cargo"
           CARGO_TARGET_DIR: "/github/home/target"
@@ -174,8 +174,7 @@ jobs:
           export ARROW_TEST_DATA=$(pwd)/testing/data
           export PARQUET_TEST_DATA=$(pwd)/parquet-testing/data
           cd ballista
-          # Ensure also compiles in standalone mode
-          cargo test --no-default-features --features standalone
+          cargo test --no-default-features
         env:
           CARGO_HOME: "/github/home/.cargo"
           CARGO_TARGET_DIR: "/github/home/target"

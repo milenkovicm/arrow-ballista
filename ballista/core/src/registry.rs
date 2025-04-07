@@ -57,12 +57,40 @@ impl Default for BallistaFunctionRegistry {
     }
 }
 
+impl BallistaFunctionRegistry {
+    /// Register UDAF function to list of available functions
+    pub fn register_udaf(&mut self, f: Arc<AggregateUDF>) {
+        self.aggregate_functions.insert(f.name().to_owned(), f);
+    }
+
+    /// Register UDF function to list of available functions
+    pub fn register_udf(&mut self, f: Arc<ScalarUDF>) {
+        self.scalar_functions.insert(f.name().to_owned(), f);
+    }
+
+    /// Register UWF function to list of available functions
+    pub fn register_udwf(&mut self, f: Arc<WindowUDF>) {
+        self.window_functions.insert(f.name().to_owned(), f);
+    }
+}
+
 impl FunctionRegistry for BallistaFunctionRegistry {
     fn expr_planners(&self) -> Vec<Arc<dyn ExprPlanner>> {
         vec![]
     }
 
     fn udfs(&self) -> HashSet<String> {
+        //
+        // self.scalar_functions
+        //     .keys()
+        //     .cloned()
+        //     .chain(self.aggregate_functions.keys().cloned())
+        //     .chain(self.window_functions.keys().cloned())
+        //     .collect()
+        //
+
+        // looks like we need to return only scalar functions
+
         self.scalar_functions.keys().cloned().collect()
     }
 

@@ -44,13 +44,11 @@ use crate::display::print_stage_metrics;
 use crate::planner::DistributedPlanner;
 use crate::scheduler_server::event::QueryStageSchedulerEvent;
 use crate::scheduler_server::timestamp_millis;
-use crate::state::execution_graph::execution_stage::RunningStage;
-pub(crate) use crate::state::execution_graph::execution_stage::{
+use crate::state::execution_stage::RunningStage;
+pub(crate) use crate::state::execution_stage::{
     ExecutionStage, ResolvedStage, StageOutput, TaskInfo, UnresolvedStage,
 };
 use crate::state::task_manager::UpdatedStages;
-
-mod execution_stage;
 
 /// Represents the DAG for a distributed query plan.
 ///
@@ -893,6 +891,7 @@ impl ExecutionGraph {
                         .unwrap()
                         .as_millis(),
                     // Those times will be updated when the task finish
+                    schedule_attempt_time: None,
                     launch_time: 0,
                     start_exec_time: 0,
                     end_exec_time: 0,
@@ -1340,6 +1339,7 @@ pub(crate) fn create_task_info(executor_id: String, task_id: usize) -> TaskInfo 
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis(),
+        schedule_attempt_time: None,
         // Those times will be updated when the task finish
         launch_time: 0,
         start_exec_time: 0,

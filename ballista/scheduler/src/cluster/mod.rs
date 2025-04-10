@@ -497,10 +497,24 @@ pub(crate) async fn bind_task_round_robin(
     schedulable_tasks
 }
 
+/// Maps execution plan to list of files it scans
 type GetScanFilesFunc = fn(
     &str,
     Arc<dyn ExecutionPlan>,
 ) -> datafusion::common::Result<Vec<Vec<Vec<PartitionedFile>>>>;
+
+/// Pluggable task distribution policy
+#[async_trait::async_trait]
+pub trait DistributionPolicy: std::fmt::Debug + Send + Sync {
+    // TODO: should we add scheduling policy as a parameter
+    //       as we see in the consistent hash, it does not work in
+    //       pull based.
+    async fn bind_tasks(
+        &self,
+        mut slots: Vec<&mut AvailableTaskSlots>,
+        active_jobs: Arc<HashMap<String, JobInfoCache>>,
+    ) -> Result<Vec<BoundTask>>;
+}
 
 pub(crate) async fn bind_task_consistent_hash(
     topology_nodes: HashMap<String, TopologyNode>,

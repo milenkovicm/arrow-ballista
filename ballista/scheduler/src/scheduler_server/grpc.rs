@@ -121,6 +121,12 @@ impl<T: 'static + AsLogicalPlan, U: 'static + AsExecutionPlan> SchedulerGrpc
                     return Err(Status::unimplemented(
                         "ConsistentHash TaskDistribution is not feasible for pull-based task scheduling"))
                 }
+
+                TaskDistributionPolicy::Custom(ref policy) =>{
+                    policy.bind_tasks(available_slots, active_jobs).await.map_err(|e| {
+                        Status::internal(e.to_string())
+                    })?
+                }
             };
 
             let mut tasks = vec![];

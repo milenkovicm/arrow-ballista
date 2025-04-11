@@ -509,11 +509,15 @@ pub trait DistributionPolicy: std::fmt::Debug + Send + Sync {
     // TODO: should we add scheduling policy as a parameter
     //       as we see in the consistent hash, it does not work in
     //       pull based.
+    //
+    // TODO: assure only running jobs are received
+    // TODO: assure bind task called if there are > 0 slots
+    // TODO: should previous two be implemented as a method in this trait ?
     async fn bind_tasks(
         &self,
         mut slots: Vec<&mut AvailableTaskSlots>,
         active_jobs: Arc<HashMap<String, JobInfoCache>>,
-    ) -> Result<Vec<BoundTask>>;
+    ) -> datafusion::error::Result<Vec<BoundTask>>;
 }
 
 pub(crate) async fn bind_task_consistent_hash(

@@ -931,7 +931,7 @@ impl ExecutionGraph {
         Ok(next_task)
     }
 
-    pub(crate) fn fetch_running_stage(
+    pub fn fetch_running_stage(
         &mut self,
         black_list: &[usize],
     ) -> Option<(&mut RunningStage, &mut usize)> {

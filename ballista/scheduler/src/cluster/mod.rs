@@ -526,6 +526,9 @@ pub trait DistributionPolicy: std::fmt::Debug + Send + Sync {
         mut slots: Vec<&mut AvailableTaskSlots>,
         running_jobs: Arc<HashMap<String, JobInfoCache>>,
     ) -> datafusion::error::Result<Vec<BoundTask>>;
+
+    /// Name of [DistributionPolicy]
+    fn name(&self) -> &str;
 }
 
 pub(crate) async fn bind_task_consistent_hash(

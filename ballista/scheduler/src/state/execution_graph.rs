@@ -1331,7 +1331,7 @@ impl Debug for ExecutionGraph {
     }
 }
 
-pub(crate) fn create_task_info(executor_id: String, task_id: usize) -> TaskInfo {
+pub fn create_task_info(executor_id: String, task_id: usize) -> TaskInfo {
     TaskInfo {
         task_id,
         scheduled_time: SystemTime::now()

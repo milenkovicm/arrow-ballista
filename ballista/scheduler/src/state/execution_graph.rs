@@ -891,7 +891,6 @@ impl ExecutionGraph {
                         .unwrap()
                         .as_millis(),
                     // Those times will be updated when the task finish
-                    schedule_attempt_time: None,
                     launch_time: 0,
                     start_exec_time: 0,
                     end_exec_time: 0,
@@ -1339,7 +1338,6 @@ pub(crate) fn create_task_info(executor_id: String, task_id: usize) -> TaskInfo 
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis(),
-        schedule_attempt_time: None,
         // Those times will be updated when the task finish
         launch_time: 0,
         start_exec_time: 0,

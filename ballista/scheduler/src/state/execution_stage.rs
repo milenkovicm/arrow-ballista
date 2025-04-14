@@ -151,6 +151,8 @@ pub struct RunningStage {
     pub stage_id: usize,
     /// Stage Attempt number
     pub stage_attempt_num: usize,
+    /// Stage activation time (when was stage become running) in millis
+    pub stage_running_time: u128,
     /// Total number of partitions for this stage.
     /// This stage will produce on task for partition.
     pub partitions: usize,
@@ -232,12 +234,6 @@ pub struct TaskInfo {
     pub task_id: usize,
     /// Task scheduled time
     pub scheduled_time: u128,
-    /// Time when scheduling was attempted for this task
-    /// provides opportunity to prevent task starvation
-    /// for location aware scheduling.
-    ///
-    /// Not all schedulers will use this functionality
-    pub schedule_attempt_time: Option<u128>,
     /// Task launch time
     pub launch_time: u128,
     /// Start execution time
@@ -480,6 +476,10 @@ impl RunningStage {
         Self {
             stage_id,
             stage_attempt_num,
+            stage_running_time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
             partitions,
             output_links,
             inputs,
@@ -625,7 +625,6 @@ impl RunningStage {
         let updated_task_info = TaskInfo {
             task_id,
             scheduled_time,
-            schedule_attempt_time: task_info.schedule_attempt_time,
             launch_time: status.launch_time as u128,
             start_exec_time: status.start_exec_time as u128,
             end_exec_time: status.end_exec_time as u128,
@@ -823,6 +822,10 @@ impl SuccessfulStage {
             task_failure_numbers: vec![0; self.partitions],
             stage_metrics,
             session_config: self.session_config.clone(),
+            stage_running_time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
         }
     }
 
@@ -836,7 +839,6 @@ impl SuccessfulStage {
                 TaskInfo {
                     task_id,
                     scheduled_time,
-                    schedule_attempt_time,
                     task_status:
                         task_status::Status::Successful(SuccessfulTask {
                             executor_id, ..
@@ -846,7 +848,6 @@ impl SuccessfulStage {
                     *task = TaskInfo {
                         task_id: *task_id,
                         scheduled_time: *scheduled_time,
-                        schedule_attempt_time: *schedule_attempt_time,
                         launch_time: 0,
                         start_exec_time: 0,
                         end_exec_time: 0,

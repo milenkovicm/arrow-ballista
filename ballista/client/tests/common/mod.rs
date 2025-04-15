@@ -222,6 +222,10 @@ async fn connect_to_scheduler(
 }
 
 #[allow(dead_code)]
+pub async fn datafusion_context() -> SessionContext {
+    SessionContext::new()
+}
+#[allow(dead_code)]
 pub async fn standalone_context() -> SessionContext {
     SessionContext::standalone().await.unwrap()
 }

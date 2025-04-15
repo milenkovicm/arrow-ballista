@@ -19,7 +19,7 @@ mod common;
 #[cfg(test)]
 mod supported {
 
-    use crate::common::{remote_context, standalone_context};
+    use crate::common::{datafusion_context, remote_context, standalone_context};
     use ballista_core::config::BallistaConfig;
     use datafusion::prelude::*;
     use datafusion::{assert_batches_eq, prelude::SessionContext};
@@ -494,5 +494,171 @@ mod supported {
         ];
 
         assert_batches_eq!(expected, &result);
+    }
+
+    #[rstest]
+    #[case::datafusion(datafusion_context())]
+    #[case::standalone(standalone_context())]
+    #[case::remote(remote_context())]
+    #[tokio::test]
+    async fn should_read_partitioned_data(
+        #[future(awt)]
+        #[case]
+        ctx: SessionContext,
+        test_data: String,
+    ) -> datafusion::error::Result<()> {
+        use std::sync::Arc;
+
+        use datafusion::{
+            arrow::datatypes::DataType,
+            datasource::{
+                file_format::parquet::ParquetFormat,
+                listing::{
+                    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+                },
+            },
+        };
+
+        let session_state = ctx.state();
+        let data = format!("{test_data}/hive_style/");
+        let listing_table_url = ListingTableUrl::parse(data)?;
+
+        let table_partition_cols = vec![
+            ("year".to_owned(), DataType::Int64),
+            ("month".to_owned(), DataType::Int64),
+        ];
+
+        let file_format = ParquetFormat::new()
+            .with_enable_pruning(true)
+            .with_skip_metadata(true);
+
+        let listing_options = ListingOptions::new(Arc::new(file_format))
+            .with_table_partition_cols(table_partition_cols);
+
+        // let resolved_schema = listing_options
+        //     .infer_schema(&session_state, &listing_table_url)
+        //     .await?;
+        // println!("1 => {:?}", resolved_schema);
+
+        let config = ListingTableConfig::new(listing_table_url)
+            .with_listing_options(listing_options)
+            .infer_schema(&session_state)
+            .await?;
+        //.with_schema(resolved_schema)
+
+        println!("2 => {:?}", config.file_schema);
+
+        let listing_table = ListingTable::try_new(config)?;
+
+        ctx.register_table("hive_style", Arc::new(listing_table))?;
+
+        let result = ctx
+            .sql(
+                "SELECT year, month FROM hive_style GROUP BY year, month ORDER BY year, month",
+            )
+            .await?
+            .collect()
+            .await?;
+
+        let expected = [
+            "+------+-------+",
+            "| year | month |",
+            "+------+-------+",
+            "| 2024 | 1     |",
+            "| 2024 | 2     |",
+            "| 2025 | 2     |",
+            "| 2025 | 3     |",
+            "+------+-------+",
+        ];
+
+        assert_batches_eq!(expected, &result);
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case::datafusion(datafusion_context())]
+    // #[case::standalone(standalone_context())]
+    // #[case::remote(remote_context())]
+    #[tokio::test]
+    async fn _should_read_partitioned_data(
+        #[future(awt)]
+        #[case]
+        ctx: SessionContext,
+        test_data: String,
+    ) -> datafusion::error::Result<()> {
+        use std::sync::Arc;
+
+        use datafusion::{
+            arrow::datatypes::DataType,
+            datasource::{
+                file_format::parquet::ParquetFormat,
+                listing::{
+                    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+                },
+            },
+        };
+        use datafusion_proto::bytes::{logical_plan_from_bytes, logical_plan_to_bytes};
+
+        let session_state = ctx.state();
+        let data = format!("{test_data}/hive_style/");
+        let listing_table_url = ListingTableUrl::parse(data)?;
+
+        let table_partition_cols = vec![
+            ("year".to_owned(), DataType::Int64),
+            ("month".to_owned(), DataType::Int64),
+        ];
+
+        let file_format = ParquetFormat::new()
+            .with_enable_pruning(true)
+            .with_skip_metadata(true);
+
+        let listing_options = ListingOptions::new(Arc::new(file_format))
+            .with_table_partition_cols(table_partition_cols);
+
+        let config = ListingTableConfig::new(listing_table_url)
+            .with_listing_options(listing_options)
+            .infer_schema(&session_state)
+            .await?;
+
+        ctx.register_table("hive_style", Arc::new(ListingTable::try_new(config)?))?;
+        //
+        // Limit: skip=0, fetch=1
+        //  Projection: hive_style.year, hive_style.month
+        //   TableScan: hive_style
+        //
+        let plan = ctx
+            .sql("SELECT year, month FROM hive_style LIMIT 1")
+            .await?
+            .logical_plan()
+            .clone();
+
+        let expected = [
+            "+------+-------+",
+            "| year | month |",
+            "+------+-------+",
+            "| 2024 | 1     |",
+            "+------+-------+",
+        ];
+
+        // works as expected
+        let result = ctx
+            .execute_logical_plan(plan.clone())
+            .await?
+            .collect()
+            .await?;
+        assert_batches_eq!(expected, &result);
+
+        let bytes = logical_plan_to_bytes(&plan)?;
+
+        // logical plan from bytes fails
+        //
+        // Error: SchemaError(DuplicateQualifiedField { qualifier: Bare { table: "hive_style" }, name: "year" }, Some(""))
+        let plan = logical_plan_from_bytes(&bytes, &ctx)?;
+
+        let result = ctx.execute_logical_plan(plan).await?.collect().await?;
+        assert_batches_eq!(expected, &result);
+
+        Ok(())
     }
 }

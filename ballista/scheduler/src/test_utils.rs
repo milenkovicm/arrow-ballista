@@ -479,12 +479,7 @@ impl SchedulerTest {
             .await
     }
 
-    pub async fn submit(
-        &mut self,
-        job_id: &str,
-        job_name: &str,
-        plan: &LogicalPlan,
-    ) -> Result<()> {
+    pub async fn submit(&mut self, job_name: &str, plan: &LogicalPlan) -> Result<String> {
         println!("{:?}", self.session_config);
         let ctx = self
             .scheduler
@@ -493,11 +488,9 @@ impl SchedulerTest {
             .create_session(&self.session_config)
             .await?;
 
-        self.scheduler
-            .submit_job(job_id, job_name, ctx, plan)
-            .await?;
+        let job_id = self.scheduler.submit_job(job_name, ctx, plan).await?;
 
-        Ok(())
+        Ok(job_id)
     }
 
     pub async fn post_scheduler_event(
@@ -605,12 +598,12 @@ impl SchedulerTest {
         final_status
     }
 
+    /// Returns job status and job_id
     pub async fn run(
         &mut self,
-        job_id: &str,
         job_name: &str,
         plan: &LogicalPlan,
-    ) -> Result<JobStatus> {
+    ) -> Result<(JobStatus, String)> {
         let ctx = self
             .scheduler
             .state
@@ -618,9 +611,7 @@ impl SchedulerTest {
             .create_session(&self.session_config)
             .await?;
 
-        self.scheduler
-            .submit_job(job_id, job_name, ctx, plan)
-            .await?;
+        let job_id = self.scheduler.submit_job(job_name, ctx, plan).await?;
 
         let mut receiver = self.status_receiver.take().unwrap();
 
@@ -639,7 +630,7 @@ impl SchedulerTest {
                 .scheduler
                 .state
                 .task_manager
-                .get_job_status(job_id)
+                .get_job_status(&job_id)
                 .await?;
 
             if let Some(JobStatus {
@@ -658,7 +649,7 @@ impl SchedulerTest {
             tokio::time::sleep(Duration::from_millis(100)).await
         };
 
-        final_status
+        final_status.map(|s| (s, job_id))
     }
 }
 
@@ -745,7 +736,7 @@ pub fn assert_submitted_event(job_id: &str, collector: &TestMetricsCollector) {
         .iter()
         .any(|ev| matches!(ev, MetricEvent::Submitted(_, _, _)));
 
-    assert!(found, "{}", "Expected submitted event for job {job_id}");
+    assert!(found, "Expected submitted event for job {job_id}");
 }
 
 pub fn assert_no_submitted_event(job_id: &str, collector: &TestMetricsCollector) {
@@ -754,7 +745,7 @@ pub fn assert_no_submitted_event(job_id: &str, collector: &TestMetricsCollector)
         .iter()
         .any(|ev| matches!(ev, MetricEvent::Submitted(_, _, _)));
 
-    assert!(!found, "{}", "Expected no submitted event for job {job_id}");
+    assert!(!found, "Expected no submitted event for job {job_id}");
 }
 
 pub fn assert_completed_event(job_id: &str, collector: &TestMetricsCollector) {
@@ -781,7 +772,7 @@ pub fn assert_failed_event(job_id: &str, collector: &TestMetricsCollector) {
         .iter()
         .any(|ev| matches!(ev, MetricEvent::Failed(_, _, _)));
 
-    assert!(found, "{}", "Expected failed event for job {job_id}");
+    assert!(found, "Expected failed event for job {job_id}");
 }
 
 pub fn revive_graph_and_complete_next_stage(graph: &mut ExecutionGraph) -> Result<usize> {

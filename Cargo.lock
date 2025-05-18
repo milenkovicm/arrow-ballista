@@ -960,6 +960,7 @@ dependencies = [
  "ctor",
  "datafusion",
  "env_logger",
+ "futures",
  "log",
  "object_store",
  "parking_lot",

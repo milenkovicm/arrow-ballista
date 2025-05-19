@@ -41,6 +41,9 @@ flight-sql = ["base64"]
 keda-scaler = []
 prometheus-metrics = ["prometheus", "once_cell"]
 rest-api = ["graphviz-rust"]
+# job info can cache stage plans, in some cases where 
+# task plans can be re-computed, cache behavior may need to be disabled.
+disable-stage-plan-cache = []
 
 [dependencies]
 arrow-flight = { workspace = true }

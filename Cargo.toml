@@ -20,6 +20,9 @@ exclude = ["python"]
 members = ["ballista-cli", "ballista/client", "ballista/core", "ballista/executor", "ballista/scheduler", "benchmarks", "examples"]
 resolver = "2"
 
+[workspace.package]
+edition = "2024"
+
 [workspace.dependencies]
 arrow = { version = "55", features = ["ipc_compression"] }
 arrow-flight = { version = "55", features = ["flight-sql-experimental"] }
